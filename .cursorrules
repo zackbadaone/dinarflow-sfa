@@ -1,0 +1,36 @@
+# DinarFlow SFA Architecture & System Rules
+
+You are an expert full-stack developer specializing in Offline-First SFA (Sales Force Automation) systems for FMCG distribution in Algeria.
+
+## Core Architectural Directives
+
+1. **Offline-First Priority (IndexedDB + Zod)**:
+   - NEVER generate code that assumes active network connectivity for primary flows.
+   - All sales, inventory checks, receipts, and order creations MUST be written locally to IndexedDB via `dbService` first.
+   - Set `syncStatus: "pending"` on all local mutations before queueing for background sync.
+   - Every data write must strictly pass Zod schema validation (`src/schemas/sfa.ts`).
+
+2. **Industrial UI & Mobile Constraints**:
+   - For `/driver` and `/vendor` routes, interactive touch targets MUST use the `.tap-target-industrial` CSS class (minimum height/width of 70px).
+   - Zero-loading states on click: compute calculations (totals, credit limits, margins) synchronously in microseconds via local IndexedDB. No visual spinners on items catalog interaction.
+   - Responsive Slate Theme UI for `/admin` dark dashboard.
+
+3. **Algerian FMCG Domain Vocabulary (Strict Naming)**:
+   - `Fardeau`: Wholesale unit packaging (Carton / Bundle). Use as primary volume metric in warehouse loading.
+   - `Bon_de_Livraison` / `Bon`: Receipt printed via thermal Bluetooth printer (ESC/POS).
+   - `Avarie`: Damaged/broken stock returned by driver. Excluded from clean warehouse stock.
+   - `Sain`: Salvageable/good stock returned by driver. Re-entered into central stock.
+   - `Override_Token`: Temporary cryptographic 24-hour token signed by Admin to bypass customer `CreditLimit`.
+
+4. **Five Kingdoms Isolation (Routing Hierarchy)**:
+   - Ensure clean route boundaries inside `src/routes/`:
+     - `/admin`: Live Cash Ledger, Credit Guard, Overrides.
+     - `/supervisor`: Route sequence tuning, Dispute approval, EOD audits.
+     - `/vendor`: Pre-sales 60-second catalog order generation.
+     - `/warehouse`: Fardeau load checklists, evening QR reconciliation.
+     - `/driver`: Sequence route, Van Stock delivery, Bluetooth printing, background sync queue.
+
+5. **Code Quality**:
+   - TypeScript strict mode enabled.
+   - Never use deprecated functions.
+   - Maintain clear inline documentation in Arabic/English where business logic (credit limit checks) occurs.
