@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
+import { CreditAndPinManager } from '../../components/modules/admin/CreditAndPinManager';
+import { ProductPriceDiscountManager } from '../../components/modules/admin/ProductPriceDiscountManager';
 
 // واجهة الإدارة العليا (Admin Dashboard - Central Command)
 export default function AdminDashboard() {
-  const [activeTab, setActiveTab] = useState<'overview' | 'fleet'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'products_pricing' | 'credit_pin' | 'fleet'>('overview');
 
   // بيانات إحصائية شاملة (KPIs)
   const systemKPIs = {
@@ -27,14 +29,15 @@ export default function AdminDashboard() {
   ];
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans p-4 md:p-6 pb-24">
+    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans p-4 md:p-6 pb-24 dir-rtl text-right">
+      
       {/* الشريط العلوي - معلومات الإدارة */}
       <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-slate-900 border border-slate-800 p-4 rounded-2xl mb-6 shadow-lg">
         <div>
           <div className="flex items-center gap-3">
             <span className="h-3 w-3 rounded-full bg-amber-500 animate-pulse"></span>
             <h1 className="text-xl font-bold tracking-wide text-white">
-              DinarFlow SFA <span className="text-xs font-normal text-slate-900 font-bold bg-amber-500 px-2.5 py-1 rounded-md border border-amber-400">مملكة الإدارة (Admin)</span>
+              DinarFlow SFA <span className="text-xs font-normal text-slate-900 bg-amber-500 px-2.5 py-1 rounded-md border border-amber-400">مملكة الإدارة (Admin)</span>
             </h1>
           </div>
           <p className="text-xs text-slate-400 mt-1">
@@ -68,11 +71,11 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      {/* التبويب */}
-      <div className="flex border-b border-slate-800 mb-6">
+      {/* أزرار التبويبات الرئيسية */}
+      <div className="flex border-b border-slate-800 mb-6 gap-2 overflow-x-auto">
         <button
           onClick={() => setActiveTab('overview')}
-          className={`pb-3 px-4 font-bold text-sm transition-all border-b-2 ${
+          className={`pb-3 px-4 font-bold text-sm transition-all border-b-2 whitespace-nowrap ${
             activeTab === 'overview'
               ? 'border-amber-500 text-amber-400'
               : 'border-transparent text-slate-400 hover:text-slate-200'
@@ -80,9 +83,32 @@ export default function AdminDashboard() {
         >
           التحليلات والمناطق
         </button>
+
+        <button
+          onClick={() => setActiveTab('products_pricing')}
+          className={`pb-3 px-4 font-bold text-sm transition-all border-b-2 whitespace-nowrap ${
+            activeTab === 'products_pricing'
+              ? 'border-amber-500 text-amber-400'
+              : 'border-transparent text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          المنتجات والأسعار والتخفيضات
+        </button>
+
+        <button
+          onClick={() => setActiveTab('credit_pin')}
+          className={`pb-3 px-4 font-bold text-sm transition-all border-b-2 whitespace-nowrap ${
+            activeTab === 'credit_pin'
+              ? 'border-amber-500 text-amber-400'
+              : 'border-transparent text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          إدارة أسقف الديون ورموز الـ PIN
+        </button>
+
         <button
           onClick={() => setActiveTab('fleet')}
-          className={`pb-3 px-4 font-bold text-sm transition-all border-b-2 ${
+          className={`pb-3 px-4 font-bold text-sm transition-all border-b-2 whitespace-nowrap ${
             activeTab === 'fleet'
               ? 'border-amber-500 text-amber-400'
               : 'border-transparent text-slate-400 hover:text-slate-200'
@@ -129,7 +155,21 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* 2. قسم حالة الخوادم */}
+      {/* 2. قسم إدارة المنتجات والأسعار والتخفيضات */}
+      {activeTab === 'products_pricing' && (
+        <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl">
+          <ProductPriceDiscountManager />
+        </div>
+      )}
+
+      {/* 3. قسم إدارة بلافون الكريدي والـ PIN */}
+      {activeTab === 'credit_pin' && (
+        <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl">
+          <CreditAndPinManager />
+        </div>
+      )}
+
+      {/* 4. قسم حالة الخوادم */}
       {activeTab === 'fleet' && (
         <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl">
           <h2 className="text-lg font-bold text-white mb-4">سلامة النظام (System Health)</h2>

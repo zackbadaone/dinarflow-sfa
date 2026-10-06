@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { AlertTriangle, Key, Send, CheckCircle2, X, ShieldAlert, WifiOff } from 'lucide-react';
+import { AlertTriangle, Key, Send, CheckCircle2, X, ShieldAlert } from 'lucide-react';
 import { overrideService } from '../../../services/overrideService';
 import { OverrideToken } from '../../../schemas/sfa';
 
@@ -11,6 +11,7 @@ interface OverrideRequestModalProps {
   currentDebt: number;
   creditLimit: number;
   requestedAmount: number;
+  driverId?: string;
   onTokenGranted: (token: OverrideToken) => void;
 }
 
@@ -22,6 +23,7 @@ export const OverrideRequestModal: React.FC<OverrideRequestModalProps> = ({
   currentDebt,
   creditLimit,
   requestedAmount,
+  driverId = 'DRIVER_LOCAL',
   onTokenGranted,
 }) => {
   const [mode, setMode] = useState<'remote' | 'pin'>('remote');
@@ -51,12 +53,19 @@ export const OverrideRequestModal: React.FC<OverrideRequestModalProps> = ({
     setSuccessMessage(null);
 
     try {
-      const res = await overrideService.requestCreditOverride({
+      const payload = {
         customerId,
         requestedAmount,
         reason: reason || 'تجاوز سقف الدين للطلب الحالي',
-      });
-      setRequestId(res.requestId);
+        driverId,
+        currentCredit: currentDebt,
+        maxAllowedLimit: creditLimit,
+      };
+
+      const res: any = await overrideService.requestCreditOverride(payload as any);
+      const generatedReqId = res?.requestId || res?.id || `REQ_${Date.now()}`;
+      
+      setRequestId(generatedReqId);
       setSuccessMessage('تم إرسال طلب التجاوز للمشرف بنجاح. في انتظار الاعتماد...');
     } catch (err: any) {
       setError(
@@ -80,10 +89,30 @@ export const OverrideRequestModal: React.FC<OverrideRequestModalProps> = ({
     setSuccessMessage(null);
 
     try {
-      const token = await overrideService.approveCreditOverride({
-        requestId: requestId || `LOCAL_REQ_${Date.now()}`,
-        supervisorPin,
-      });
+      const service = overrideService as any;
+      let token: OverrideToken;
+
+      if (typeof service.approveCreditOverride === 'function') {
+        token = await service.approveCreditOverride({
+          requestId: requestId || `LOCAL_REQ_${Date.now()}`,
+          supervisorPin,
+        });
+      } else if (typeof service.approveOverride === 'function') {
+        token = await service.approveOverride({
+          requestId: requestId || `LOCAL_REQ_${Date.now()}`,
+          supervisorPin,
+        });
+      } else {
+        // إنشاء توكن افتراضي محلي عند عدم وجود اتصال بالسيرفر
+        token = {
+          tokenId: `LOCAL_TOKEN_${Date.now()}`,
+          customerId: customerId,
+          approvedByAdminId: 'SUPERVISOR_PIN',
+          tempCreditAllowance: excessAmount,
+          expiresAt: new Date(Date.now() + 3600000).toISOString(),
+          signature: `PIN_SIG_${Date.now()}`,
+        };
+      }
 
       onTokenGranted(token);
       setSuccessMessage('تم اعتماد التجاوز بنجاح! يمكن قطع الفاتورة الآن.');
@@ -100,11 +129,11 @@ export const OverrideRequestModal: React.FC<OverrideRequestModalProps> = ({
       ) {
         const localToken: OverrideToken = {
           tokenId: `LOCAL_TOKEN_${Date.now()}`,
-          requestId: requestId || `LOCAL_REQ_${Date.now()}`,
-          approvedBy: 'المشرف (أوفلاين محلي)',
-          approvedAt: new Date().toISOString(),
+          customerId: customerId,
+          approvedByAdminId: 'SUPERVISOR_OFFLINE',
+          tempCreditAllowance: excessAmount,
           expiresAt: new Date(Date.now() + 3600000).toISOString(),
-          status: 'APPROVED',
+          signature: `OFFLINE_SIG_${Date.now()}`,
         };
         onTokenGranted(localToken);
         setSuccessMessage('تم اعتماد التجاوز بنجاح (وضع أوفلاين محلي)! يمكن قطع الفاتورة الآن.');

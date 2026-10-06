@@ -1,0 +1,30 @@
+{
+  "short_name": "DinarFlow",
+  "name": "DinarFlow SFA - نظام إدارة المبيعات الميدانية",
+  "description": "تطبيق إدارة مبيعات المندوبين والمستودعات ميدانياً - يعمل كاملاً بدون إنترنت (Offline First)",
+  "icons": [
+    {
+      "src": "pwa-192x192.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "pwa-512x512.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    },
+    {
+      "src": "pwa-512x512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "display": "standalone",
+  "orientation": "portrait",
+  "dir": "rtl",
+  "lang": "ar"
+}

@@ -1,7 +1,50 @@
 @import "tailwindcss";
 
+/* ==========================================================================
+   DinarFlow SFA - Global RTL & Mobile Field UI Styles
+   تنسيقات الهوية البصرية الشاملة والاتجاه العربي لتطبيق المبيعات الميدانية
+   ========================================================================== */
+
+:root {
+  color-scheme: light;
+}
+
+/* ضبط الاتجاه العربي الافتراضي والسلوك البصري للمتصفح */
+html {
+  direction: rtl;
+  text-align: right;
+  -webkit-tap-highlight-color: transparent;
+  scroll-behavior: smooth;
+}
+
 body {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
+  background-color: #f8fafc; /* bg-slate-50 */
+  color: #0f172a; /* text-slate-900 */
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* توحيد الخطوط لكافة عناصر الإدخال والأزرار */
+input, button, select, textarea {
+  font-family: inherit;
+}
+
+/* منع التحديد المزعج للنصوص أثناء السحب واللمس الميداني على الهاتف */
+.touch-none-select {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* إخفاء أشرطة التمرير لتمرير البطاقات والجداول بسلاسة على شاشات الهواتف */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }

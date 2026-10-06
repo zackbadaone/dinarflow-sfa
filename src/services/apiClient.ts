@@ -1,3 +1,4 @@
+/// <reference types="vite/client" />
 import { db } from '../lib/db';
 
 // تحديد المسار الأساسي لشبكة API من متغيرات البيئة أو المسار الافتراضي
@@ -5,6 +6,7 @@ const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api
 
 interface RequestOptions extends RequestInit {
   headers?: Record<string, string>;
+  timeout?: number; // المهلة الزمنية بالملي ثانية (افتراضياً 15 ثانية)
 }
 
 /**
@@ -22,13 +24,14 @@ async function getAuthToken(): Promise<string | null> {
 
 /**
  * محرك الاتصال الموحد (API Gateway Client)
- * يضمن إرفاق التوكين والترويسات الأساسية لجميع طلبات Laravel Sanctum
+ * يضمن إرفاق التوكين والترويسات الأساسية لجميع طلبات Laravel Sanctum مع حماية الشبكة الميدانية
  */
 export async function apiClient<T = any>(
   endpoint: string,
   options: RequestOptions = {}
 ): Promise<T> {
   const token = await getAuthToken();
+  const { timeout = 15000, ...fetchOptions } = options;
 
   const defaultHeaders: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -40,10 +43,10 @@ export async function apiClient<T = any>(
   }
 
   const config: RequestInit = {
-    ...options,
+    ...fetchOptions,
     headers: {
       ...defaultHeaders,
-      ...options.headers,
+      ...fetchOptions.headers,
     },
   };
 
@@ -51,8 +54,14 @@ export async function apiClient<T = any>(
     ? endpoint 
     : `${BASE_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
 
+  // إعداد مؤقت لإلغاء الطلب في حالة ضعف شبكة المندوب الميدانية
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeout);
+  config.signal = controller.signal;
+
   try {
     const response = await fetch(url, config);
+    clearTimeout(id);
 
     // التعامل مع الجلسات المنتهية
     if (response.status === 401) {
@@ -68,6 +77,11 @@ export async function apiClient<T = any>(
 
     return (await response.json()) as T;
   } catch (error: any) {
+    clearTimeout(id);
+    if (error.name === 'AbortError') {
+      console.error(`[API Client Timeout] انقطعت المهلة الزمنية للاتصال (${timeout}ms): ${url}`);
+      throw new Error('تعذر الاتصال بالسيرفر بسبب ضعف الشبكة الميدانية، حاول مجدداً.');
+    }
     console.error(`[API Client Error] [${options.method || 'GET'}] ${url}:`, error.message);
     throw error;
   }

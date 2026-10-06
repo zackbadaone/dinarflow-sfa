@@ -1,7 +1,7 @@
 import { db } from '../lib/db';
 import { DeliveryReceipt, OverrideToken, Product, Customer } from '../schemas/sfa';
 import { apiClient } from './apiClient';
-import { overrideService } from './overrideService'; // أضفنا استدعاء خدمة التجاوز لجلب التوكين
+import { overrideService } from './overrideService'; // استدعاء خدمة التجاوز لجلب التوكين
 
 // حجم الحزمة الميدانية (كم فاتورة نرسل في الطلب الواحد)
 const BATCH_SIZE = 10; 
@@ -61,7 +61,7 @@ export class SyncEngine {
     return chunks;
   }
 
-  // 2. محرك الرفع السريع (Push Engine): رفع الفواتير البونات المعلقة
+  // 2. محرك الرفع السريع (Push Engine): رفع الفواتير والبونات المعلقة
   async syncData(): Promise<{ syncedCount: number; failedCount: number }> {
     if (this.isSyncing) {
       console.log('المزامنة جارية بالفعل...');
@@ -129,7 +129,7 @@ export class SyncEngine {
       const lastSyncSetting = await db.settings.get('last_sync_timestamp');
       const lastSync = lastSyncSetting?.value || '1970-01-01T00:00:00.000Z';
 
-      console.log(`📥 [Pull Engine] جلب التحديثات من السيرفر (أسعار، كتالوج، ديون) منذ: ${lastSync}`);
+      console.log(`📥 [Pull Engine] جلب التحديثات من السيرفر (أسعار، كتالوج، ديون، مخزون) منذ: ${lastSync}`);
 
       const response = await apiClient.get<{
         products: Product[];
@@ -142,7 +142,7 @@ export class SyncEngine {
 
         if (products && products.length > 0) {
           await db.products.bulkPut(products);
-          console.log(`✅ [خلفية النظام] تم تحديث أسعار وكتالوج ${products.length} منتج محلياً في Dexie.`);
+          console.log(`✅ [خلفية النظام] تم تحديث أسعار ومخزون وكتالوج ${products.length} منتج محلياً في Dexie.`);
         }
 
         if (customers && customers.length > 0) {
@@ -165,7 +165,7 @@ export class SyncEngine {
           }));
         }
 
-        console.log('✅ اكتملت عملية جلب وتحديث الكتالوج وسقوف الديون أوتوماتيكياً في الخلفية.');
+        console.log('✅ اكتملت عملية جلب وتحديث الكتالوج والمخزون وسقوف الديون أوتوماتيكياً في الخلفية.');
         return true;
       }
       return false;
@@ -175,30 +175,44 @@ export class SyncEngine {
     }
   }
 
-  // 4. رفع حزمة كاملة للسيرفر المركزي باستخدام apiClient مع إرفاق توكينات التجاوز
+  // 4. رفع حزمة كاملة للسيرفر المركزي عبر المسار الموحد /orders/sync مع التقاط بيانات التجاوز
   private async uploadBatchToServer(batch: DeliveryReceipt[]): Promise<boolean> {
     try {
-      // نجهز الفواتير مع التوكينات المرتبطة بها (إن وجدت)
+      // نجهز الفواتير ونلتقط الاستثناءات الميدانية (isOverridden و supervisorPin)
       const enrichedBatch = await Promise.all(batch.map(async (receipt) => {
-        // نحاول البحث عن توكين تجاوز صالح لهذا الزبون في قاعدة البيانات المحلية
+        // توسيع نوع الفاتورة محلياً لتشمل حقول التجاوز الميدانية بدون مشاكل TypeScript
+        const r = receipt as DeliveryReceipt & {
+          isOverridden?: boolean;
+          supervisorPin?: string;
+          overrideDate?: string;
+        };
+
         const activeToken = await overrideService.getActiveTokenForCustomer(receipt.customerId);
         
+        // طباعة تنبيه في الـ console عند اكتشاف بون تجاوز ميداني
+        if (r.isOverridden) {
+          console.log(`⚠️ [تنبيه المزامنة] البون (${receipt.id}) ينطوي على تجاوز ديون استثنائي عبر الـ PIN (${r.supervisorPin}).`);
+        }
+
         return {
           ...receipt,
-          // إذا وجدنا توكين صالح نرفقه، وإذا لم نجد لا نرسل شيئاً (يُترك للسيرفر المركزي التحقق)
+          isOverridden: r.isOverridden ?? false,
+          supervisorPin: r.supervisorPin ?? null,
+          overrideDate: r.overrideDate ?? null,
           overrideToken: activeToken ? activeToken : undefined
         };
       }));
 
-      await apiClient.post('/sync/push', { 
+      // إرسال الحزمة إلى المسار المعاير /orders/sync
+      await apiClient.post('/orders/sync', { 
         receipts: enrichedBatch,
         timestamp: new Date().toISOString()
       });
       
-      console.log(`✅ تم رفع الحزمة (${enrichedBatch.length} فواتير) للسيرفر المركزي بنجاح.`);
+      console.log(`✅ تم رفع الحزمة (${enrichedBatch.length} فواتير) للسيرفر المركزي بنجاح عبر /orders/sync.`);
       return true;
     } catch (err) {
-      console.error('❌ فشل رفع الحزمة:', err);
+      console.error('❌ فشل رفع الحزمة إلى /orders/sync:', err);
       return false;
     }
   }
@@ -212,7 +226,6 @@ export class SyncEngine {
       return { valid: false, reason: 'انتهت صلاحية التوكين (تجاوزت 24 ساعة).' };
     }
 
-    // تم تصحيح approvedBy إلى approvedByAdminId ليتطابق مع الـ Schema تماماً!
     if (!token.tokenId || !token.approvedByAdminId) {
       return { valid: false, reason: 'توكين التجاوز غير مكتمل البيانات.' };
     }
