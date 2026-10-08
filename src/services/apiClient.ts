@@ -1,8 +1,9 @@
 /// <reference types="vite/client" />
 import { db } from '../lib/db';
+import { envConfig, EnvironmentService } from '../config/environment';
 
-// تحديد المسار الأساسي لشبكة API من متغيرات البيئة أو المسار الافتراضي
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
+// جلب المسار الأساسي لشبكة API من خدمة البيئة الموحدة
+const getBaseUrl = (): string => EnvironmentService.getApiUrl();
 
 interface RequestOptions extends RequestInit {
   headers?: Record<string, string>;
@@ -50,9 +51,14 @@ export async function apiClient<T = any>(
     },
   };
 
+  const baseUrl = getBaseUrl();
   const url = endpoint.startsWith('http') 
     ? endpoint 
-    : `${BASE_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
+    : `${baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
+
+  if (envConfig.enableDebugLogs) {
+    console.log(`📡 [API Client] [${options.method || 'GET'}] ${url}`);
+  }
 
   // إعداد مؤقت لإلغاء الطلب في حالة ضعف شبكة المندوب الميدانية
   const controller = new AbortController();

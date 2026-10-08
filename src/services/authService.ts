@@ -1,10 +1,11 @@
 import { db } from '../lib/db';
+import { apiClient } from './apiClient';
 
 export interface User {
   id: number;
   name: string;
   email: string;
-  // أضفنا حقل الصلاحية هنا للتمييز بين المندوب والمشرف والمدير
+  // حقل الصلاحية للتمييز بين المندوب والمشرف والمدير
   role?: 'admin' | 'supervisor' | 'driver' | string; 
 }
 
@@ -15,24 +16,17 @@ export interface LoginResponse {
   user?: User;
 }
 
-// قمنا بحل مشكلة TypeScript عبر تحويل import.meta إلى any مؤقتاً لإسكات الخطأ بأمان
-const API_BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000/api';
-
 export const authService = {
+  /**
+   * تسجيل دخول البائع مع السيرفر وتخزين التوكين وبيانات الجلسة محلياً
+   */
   async loginUser(email: string, password: string): Promise<LoginResponse> {
     try {
-      const response = await fetch(`${API_BASE_URL}/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: JSON.stringify({ email, password }),
-      });
-
-      const data: LoginResponse = await response.json();
+      // استخدام apiClient الموحد لضمان الترويسات الصحيحة وعناوين البيئة
+      const data = await apiClient.post<LoginResponse>('/login', { email, password });
 
       if (data.success && data.token && data.user) {
+        // تخزين التوكين والمستخدم في قاعدة البيانات المحلية IndexedDB
         await db.settings.put({
           key: 'auth_token',
           value: data.token,
@@ -44,15 +38,18 @@ export const authService = {
       }
 
       return data;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Login error:', error);
       return {
         success: false,
-        message: 'تعذر الاتصال بالسيرفر. يرجى التحقق من توفر الشبكة.',
+        message: error.message || 'تعذر الاتصال بالسيرفر. يرجى التحقق من توفر الشبكة.',
       };
     }
   },
 
+  /**
+   * جلب التوكين وبيانات الجلسة المخزنة أوفلاين
+   */
   async getStoredAuth(): Promise<{ token: string | null; user: User | null }> {
     try {
       const tokenRecord = await db.settings.get('auth_token');
@@ -68,34 +65,30 @@ export const authService = {
     }
   },
 
-  // -------- الإضافات الجديدة الخاصة بالصلاحيات (Roles) --------
-
-  // دالة لجلب صلاحية المستخدم الحالي بسرعة
+  /**
+   * جلب صلاحية المستخدم الحالي بسرعة
+   */
   async getCurrentUserRole(): Promise<string | null> {
     const { user } = await this.getStoredAuth();
     return user?.role || null;
   },
 
-  // دالة للتحقق هل المستخدم الحالي يمتلك صلاحية الموافقة على تجاوز الدين؟
+  /**
+   * التحقق مما إذا كان المستخدم يملك صلاحية الموافقة على تجاوز سقف الدين
+   */
   async canApproveOverride(): Promise<boolean> {
     const role = await this.getCurrentUserRole();
-    // المشرف والمدير فقط هما من يحق لهما الموافقة
     return role === 'admin' || role === 'supervisor';
   },
 
-  // -------------------------------------------------------------
-
+  /**
+   * تسجيل الخروج ومسح الجلسة أوفلاين وأونلاين
+   */
   async logout(): Promise<void> {
     try {
       const auth = await this.getStoredAuth();
       if (auth.token) {
-        await fetch(`${API_BASE_URL}/logout`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${auth.token}`,
-            'Accept': 'application/json',
-          },
-        });
+        await apiClient.post('/logout');
       }
     } catch (error) {
       console.warn('Network logout failed, clearing local session anyway');
