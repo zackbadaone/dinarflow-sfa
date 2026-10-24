@@ -10,7 +10,7 @@ const DEFAULT_SYNC_INTERVAL_MS = 15 * 60 * 1000;
 
 export class SyncEngine {
   private isSyncing = false;
-  private syncIntervalId: NodeJS.Timeout | null = null;
+  private syncIntervalId: ReturnType<typeof setInterval> | null = null;
 
   constructor() {
     // إضافة مستمع ذكي يراقب حالة الإنترنت تلقائياً بمجرد تشغيل التطبيق
@@ -97,14 +97,14 @@ export class SyncEngine {
               .where('id')
               .anyOf(batchIds)
               .modify({ syncStatus: 'synced' });
-              
+            
             syncedCount += batch.length;
           } else {
             await db.deliveryReceipts
               .where('id')
               .anyOf(batchIds)
               .modify({ syncStatus: 'failed' });
-              
+            
             failedCount += batch.length;
           }
         }

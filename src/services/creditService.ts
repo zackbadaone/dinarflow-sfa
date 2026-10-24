@@ -16,13 +16,13 @@ export interface CreditStatusResult {
  */
 export class CreditService {
   /**
-   * جلب تفاصيل الرصيد المالي والسقف الائتماني للزبون
+   * جلب تفاصيل الرصيد المالي والسقف الائتماني للزبون (مع دعم متوافق لـ camelCase و snake_case)
    */
   static async getCustomerCreditStatus(
     customerId: string, 
     requestedCreditAmount: number = 0
   ): Promise<CreditStatusResult> {
-    const customer = await db.customers.get(customerId);
+    const customer: any = await db.customers.get(customerId);
 
     if (!customer) {
       return {
@@ -37,7 +37,8 @@ export class CreditService {
     }
 
     const currentDebt = customer.debt || 0;
-    const creditLimit = customer.credit_limit || 0;
+    // دعم التسميتين لضمان عدم حدوث خطأ تطابق الحقول
+    const creditLimit = customer.credit_limit ?? customer.creditLimit ?? 0;
     const availableCredit = Math.max(0, creditLimit - currentDebt);
     const projectedDebt = currentDebt + requestedCreditAmount;
     const isExceeded = projectedDebt > creditLimit;
@@ -74,7 +75,7 @@ export class CreditService {
     if (!status.canApproveAmount) {
       return { 
         allowed: false, 
-        message: `تم تجاوز السقف الائتماني بمقدار ${status.exceededAmount} د.ج.`,
+        message: `تم تجاوز السقف الائتماني بمقدار ${status.exceededAmount.toLocaleString()} د.ج.`,
         exceededAmount: status.exceededAmount 
       };
     }
@@ -90,7 +91,7 @@ export class CreditService {
     amount: number, 
     operation: "add" | "subtract"
   ): Promise<Customer> {
-    const customer = await db.customers.get(customerId);
+    const customer: any = await db.customers.get(customerId);
     if (!customer) {
       throw new Error(`الزبون غير موجود: ${customerId}`);
     }

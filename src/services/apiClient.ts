@@ -11,6 +11,31 @@ interface RequestOptions extends RequestInit {
 }
 
 /**
+ * ---------------------------------------------------------------------------
+ * محولات التسمية التلقائية بين الفرونت أند (camelCase) والباك أند (snake_case)
+ * لمنع أخطاء قواعد البيانات والتنافر بين JavaScript و Laravel PostgreSQL
+ * ---------------------------------------------------------------------------
+ */
+const toSnakeCase = (str: string): string => 
+  str.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
+
+const toCamelCase = (str: string): string => 
+  str.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
+
+function transformKeys(obj: any, transformFn: (key: string) => string): any {
+  if (obj === null || typeof obj !== 'object') return obj;
+  if (Array.isArray(obj)) return obj.map((item) => transformKeys(item, transformFn));
+  return Object.keys(obj).reduce((acc, key) => {
+    const transformedKey = transformFn(key);
+    acc[transformedKey] = transformKeys(obj[key], transformFn);
+    return acc;
+  }, {} as Record<string, any>);
+}
+
+const objectToSnakeCase = (obj: any) => transformKeys(obj, toSnakeCase);
+const objectToCamelCase = (obj: any) => transformKeys(obj, toCamelCase);
+
+/**
  * جلب توكين الأمان الخاص بـ Sanctum أوفلاين من قاعدة بيانات Dexie
  */
 async function getAuthToken(): Promise<string | null> {
@@ -81,7 +106,9 @@ export async function apiClient<T = any>(
       throw new Error(errorData.message || `خطأ سيرفر: ${response.status}`);
     }
 
-    return (await response.json()) as T;
+    const rawData = await response.json();
+    // تحويل الاستجابة القادمة من الباك أند (snake_case) إلى (camelCase) للفرونت أند
+    return objectToCamelCase(rawData) as T;
   } catch (error: any) {
     clearTimeout(id);
     if (error.name === 'AbortError') {
@@ -93,23 +120,27 @@ export async function apiClient<T = any>(
   }
 }
 
-// الدوال المساعدة للاتصال السريع
+// الدوال المساعدة للاتصال السريع مع تحويل البيانات المرسلة إلى snake_case تلقائياً
 apiClient.get = <T = any>(endpoint: string, options?: RequestOptions) => 
   apiClient<T>(endpoint, { ...options, method: 'GET' });
 
-apiClient.post = <T = any>(endpoint: string, data?: any, options?: RequestOptions) => 
-  apiClient<T>(endpoint, { 
+apiClient.post = <T = any>(endpoint: string, data?: any, options?: RequestOptions) => {
+  const transformedData = data ? objectToSnakeCase(data) : undefined;
+  return apiClient<T>(endpoint, { 
     ...options, 
     method: 'POST', 
-    body: data ? JSON.stringify(data) : undefined 
+    body: transformedData ? JSON.stringify(transformedData) : undefined 
   });
+};
 
-apiClient.put = <T = any>(endpoint: string, data?: any, options?: RequestOptions) => 
-  apiClient<T>(endpoint, { 
+apiClient.put = <T = any>(endpoint: string, data?: any, options?: RequestOptions) => {
+  const transformedData = data ? objectToSnakeCase(data) : undefined;
+  return apiClient<T>(endpoint, { 
     ...options, 
     method: 'PUT', 
-    body: data ? JSON.stringify(data) : undefined 
+    body: transformedData ? JSON.stringify(transformedData) : undefined 
   });
+};
 
 apiClient.delete = <T = any>(endpoint: string, options?: RequestOptions) => 
   apiClient<T>(endpoint, { ...options, method: 'DELETE' });

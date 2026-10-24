@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  ShieldCheck, 
-  Truck, 
-  RefreshCw, 
-  Key, 
+import {  
+  ShieldCheck,  
+  Truck,  
+  RefreshCw,  
+  Key,  
   LayoutDashboard,
   Smartphone,
   Boxes,
@@ -15,22 +15,25 @@ import { OverrideRequestModal } from './components/modules/sync/OverrideRequestM
 import WarehouseDashboard from './routes/warehouse';
 import { EnvironmentService } from './config/environment';
 import { db } from './lib/db';
+import { seedInitialData } from './lib/seedData';
+import { DevSwitcher } from './components/dev/DevSwitcher';
 
 export const App: React.FC = () => {
-  // جعل تبويب المخزن والشحن هو التبويب النشط افتراضياً لاختبار الخطوة
   const [activeTab, setActiveTab] = useState<'audit' | 'override_demo' | 'warehouse'>('warehouse');
   const [isOverrideModalOpen, setIsOverrideModalOpen] = useState(false);
   const [dbStatus, setDbStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [currentRole, setCurrentRole] = useState<'admin' | 'supervisor' | 'vendor' | 'warehouse' | 'driver'>('warehouse');
 
   useEffect(() => {
     // 1. طباعة حالة البيئة والتثبيت في الكونسول للتدقيق
     EnvironmentService.logEnvironmentStatus();
 
-    // 2. اختبار ذاتي لإقلاع قاعدة البيانات المحلية (IndexedDB)
+    // 2. إقلاع قاعدة البيانات المحلية وحقن البيانات الأولية (Seed Data)
     const initLocalDatabase = async () => {
       try {
         await db.open();
-        console.log('✅ [DinarFlow DB] تم إقلاع قاعدة البيانات المحلية بنجاح في المتصفح:', db.name);
+        await seedInitialData();
+        console.log('✅ [DinarFlow DB] تم إقلاع قاعدة البيانات المحلية وحقن البيانات بنجاح:', db.name);
         setDbStatus('ready');
       } catch (error) {
         console.error('❌ [DinarFlow DB] فشل إقلاع قاعدة البيانات المحلية:', error);
@@ -41,8 +44,20 @@ export const App: React.FC = () => {
     initLocalDatabase();
   }, []);
 
+  // دالة ذكية للتعامل مع تبديل الأدوار من الشريط السفلي ومواءمتها مع الواجهات
+  const handleRoleChange = (role: 'admin' | 'supervisor' | 'vendor' | 'warehouse' | 'driver') => {
+    setCurrentRole(role);
+    if (role === 'warehouse') {
+      setActiveTab('warehouse');
+    } else if (role === 'admin' || role === 'supervisor') {
+      setActiveTab('audit');
+    } else if (role === 'vendor' || role === 'driver') {
+      setActiveTab('override_demo');
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-slate-100 font-sans text-slate-900 dir-rtl text-right pb-12 overflow-x-hidden">
+    <div className="min-h-screen bg-slate-100 font-sans text-slate-900 dir-rtl text-right pb-24 overflow-x-hidden relative">
       
       {/* شريط الملاحة الرئيسي المتجاوب مع شاشات الهواتف والتابلت */}
       <header className="bg-slate-900 text-white border-b border-slate-800 sticky top-0 z-40 shadow-md">
@@ -106,14 +121,14 @@ export const App: React.FC = () => {
         </div>
       </header>
 
-      {/* المحتوى الرئيسي حسب التبويب النشط */}
+      {/* المحتوى الرئيسي حسب التبويب النشط أو الدور الحالي */}
       <main className="max-w-7xl mx-auto px-4 pt-6">
         {activeTab === 'warehouse' && <WarehouseDashboard />}
 
         {activeTab === 'audit' && <EndToEndAuditDashboard />}
 
         {activeTab === 'override_demo' && (
-          <div className="sfa-card p-6 md:p-8 text-center space-y-4 max-w-xl mx-auto mt-6">
+          <div className="sfa-card p-6 md:p-8 text-center space-y-4 max-w-xl mx-auto mt-6 bg-white rounded-2xl shadow-sm border border-slate-200">
             <div className="w-12 h-12 bg-amber-100 text-amber-700 rounded-2xl flex items-center justify-center mx-auto">
               <Key className="w-6 h-6" />
             </div>
@@ -147,6 +162,9 @@ export const App: React.FC = () => {
 
       {/* شريط تنبيه تثبيت الـ PWA على هواتف المندوبين */}
       <PwaInstallPrompt />
+
+      {/* شريط المطور العائم للتبديل بين الأدوار */}
+      <DevSwitcher currentRole={currentRole} onRoleChange={handleRoleChange} />
 
     </div>
   );

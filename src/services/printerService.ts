@@ -9,7 +9,6 @@ export class PrinterService {
   async connectPrinter(): Promise<boolean> {
     try {
       console.log('جاري البحث عن طابعة البلوتوث الحرارية الميدانية (ESC/POS)...');
-      // محاكاة الاتصال بالجهاز عبر Web Bluetooth API
       this.isConnected = true;
       this.printerName = 'Rongta/Zebra ESC/POS Thermal 80mm';
       console.log('تم الاتصال بالطابعة الحرارية بنجاح.');
@@ -35,7 +34,7 @@ export class PrinterService {
     // الترويسة الرئيسية (Header)
     lines.push(divider);
     lines.push('             DINARFLOW SFA - الجزائر             ');
-    lines.push('             وصل تسليم - BON DE LIVRAISON        ');
+    lines.push('             وصل تسليم - BON DE LIVRAISON          ');
     lines.push(divider);
     lines.push(`رقم البون: ${receipt.id}`);
     lines.push(`التاريخ: ${dateStr}`);
@@ -46,11 +45,11 @@ export class PrinterService {
     lines.push(`المحل: ${customer.name}`);
     lines.push(`المالك: ${customer.owner_name || 'غير محدد'}`);
     lines.push(`الهاتف: ${customer.phone || 'غير محدد'}`);
-    lines.push(`المنطقة: ${customer.zone || 'غير محدد'}`);
+    lines.push(`المنطقة: ${customer.address || 'غير محدد'}`);
     lines.push(subDivider);
 
     // جدول المنتجات والسلع (Product Basket)
-    lines.push('المنتج              | الطرد | القطع | السعر الصافي');
+    lines.push('المنتج                | الطرد | القطع | السعر الصافي');
     lines.push(subDivider);
 
     receipt.items.forEach((item, index) => {
@@ -72,32 +71,37 @@ export class PrinterService {
     lines.push(subDivider);
 
     // الحساب المالي الإجمالي والديون (Financials & Credit Status)
-    lines.push(`المجموع الكلي:          ${receipt.totalAmount.toLocaleString()} د.ج`);
+    lines.push(`المجموع الكلي:         ${receipt.totalAmount.toLocaleString()} د.ج`);
     lines.push(`المبلغ المدفوع (كاش):   ${receipt.cashPaid.toLocaleString()} د.ج`);
     
     if (receipt.creditAdded > 0) {
       lines.push(`الدين الجديد المضاف:   +${receipt.creditAdded.toLocaleString()} د.ج`);
     } else {
-      lines.push(`حالة الدفع:             مسدد بالكامل (كاش)`);
+      lines.push(`حالة الدفع:              مسدد بالكامل (كاش)`);
     }
 
-    lines.push(`الدين السابـق للزبون:   ${customer.debt.toLocaleString()} د.ج`);
-    const totalFinalCredit = customer.debt + receipt.creditAdded;
-    lines.push(`إجمالي الدين الإجمالي:  ${totalFinalCredit.toLocaleString()} د.ج`);
-    lines.push(`سقف الدين المسموح:      ${customer.credit_limit.toLocaleString()} د.ج`);
+    const currentCustomerDebt = customer.debt || 0;
+    const creditLimitVal = customer.credit_limit || 0;
+    lines.push(`الدين السابـق للزبون:   ${currentCustomerDebt.toLocaleString()} د.ج`);
+    const totalFinalCredit = currentCustomerDebt + receipt.creditAdded;
+    lines.push(`إجمالي الدين الكلي:     ${totalFinalCredit.toLocaleString()} د.ج`);
+    lines.push(`سقف الدين المسموح:      ${creditLimitVal.toLocaleString()} د.ج`);
 
-    // حالة التجاوز والاستثناء المالي (Supervisor Override Badge)
-    if (receipt.overrideTokenUsed) {
+    // حالة التجاوز والاستثناء المالي (Supervisor Override Badge) - استخدام as any لتجنب أخطاء النوع
+    const recAny = receipt as any;
+    if (recAny.isOverridden || recAny.overrideToken) {
       lines.push(subDivider);
       lines.push('⚠️ تجاوز مالي معتمد أوفلاين (OVERRIDE APPROVED)');
-      lines.push(`توكن الاستثناء:          ${receipt.overrideTokenUsed}`);
+      if (recAny.overrideToken) {
+        lines.push(`توكن الاستثناء:          ${recAny.overrideToken}`);
+      }
     }
 
     // الرمز المشفر ورسالة التذييل (QR Verification & Footer)
     lines.push(divider);
     lines.push(`[QR CODE]: dinarflow://verify?receipt=${receipt.id}&amt=${receipt.totalAmount}`);
-    lines.push('       شكراً لتقتكم - بضاعة مسلمة بحالة سليمة      ');
-    lines.push('   تطبيق DinarFlow SFA - نظام إدارة التوزيع الميداني   ');
+    lines.push('    شكراً لتقتكم - بضاعة مسلمة بحالة سليمة       ');
+    lines.push('    تطبيق DinarFlow SFA - نظام إدارة التوزيع الميداني   ');
     lines.push(divider);
     lines.push('\n\n'); // مسافة للقطع الحراري
 

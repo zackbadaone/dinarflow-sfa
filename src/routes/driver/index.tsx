@@ -3,20 +3,14 @@ import { printerService } from '../../services/printerService';
 import { syncEngine } from '../../services/syncEngine';
 import { overrideService } from '../../services/overrideService';
 import { db } from '../../lib/db'; // الخزنة المحلية
-import ProductCatalogModal, { CartItem } from '../../components/modules/vendeur/ProductCatalogModal';
 
-// واجهة السائق للتوزيع الشاق (Driver Dashboard - Industrial Slate Theme)
+// واجهة السائق للتوزيع الشاق (Driver Dashboard - Industrial Slate Theme - Decoupled)
 export default function DriverDashboard() {
   const [printerConnected, setPrinterConnected] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [processingId, setProcessingId] = useState<string | null>(null); // قفل أمان الحالة لمنع التكرار
   const [selectedTab, setSelectedTab] = useState<'stops' | 'summary'>('stops');
   const [searchQuery, setSearchQuery] = useState(''); // فلتر البحث عن الزبائن في خط المسار
-
-  // حالة الكتالوج الميداني والسلة
-  const [isCatalogOpen, setIsCatalogOpen] = useState(false);
-  const [activeDeliveryId, setActiveDeliveryId] = useState<string | null>(null);
-  const [baskets, setBaskets] = useState<{ [deliveryId: string]: CartItem[] }>({});
 
   // بيانات ميدانية محاكاة لخط سير التوزيع اليومي مع دعم حدود السقف والكريدي
   const [deliveries, setDeliveries] = useState([
@@ -45,7 +39,7 @@ export default function DriverDashboard() {
       cashPaid: 50000,
       fardeauCount: 40,
       avarieCount: 2, // تالف
-      sainCount: 1,  // سليم مرتجع
+      sainCount: 1,   // سليم مرتجع
       currentCredit: 60000,
       maxAllowedLimit: 100000,
       status: 'pending',
@@ -88,35 +82,6 @@ export default function DriverDashboard() {
     setIsSyncing(true);
     await syncEngine.syncData();
     setIsSyncing(false);
-  };
-
-  // فتح كتالوج المنتجات لزبون معين
-  const handleOpenCatalogForDelivery = (deliveryId: string) => {
-    setActiveDeliveryId(deliveryId);
-    setIsCatalogOpen(true);
-  };
-
-  // إضافة منتج لسلة الزبون وتحديث مجاميع البون
-  const handleAddToCart = (item: CartItem) => {
-    if (!activeDeliveryId) return;
-
-    setBaskets((prev) => {
-      const currentCart = prev[activeDeliveryId] || [];
-      const updatedCart = [...currentCart, item];
-      
-      const newTotal = updatedCart.reduce((sum, c) => sum + c.totalPrice, 0);
-      const newFardeau = updatedCart.reduce((sum, c) => sum + c.quantityFardeau, 0);
-
-      setDeliveries((prevDeliveries) =>
-        prevDeliveries.map((d) =>
-          d.id === activeDeliveryId
-            ? { ...d, totalAmount: newTotal, fardeauCount: newFardeau, cashPaid: newTotal }
-            : d
-        )
-      );
-
-      return { ...prev, [activeDeliveryId]: updatedCart };
-    });
   };
 
   // تعديل المبلغ المدفوع كاش وتحديث محرك الفحص المالي فوراً
@@ -171,30 +136,18 @@ export default function DriverDashboard() {
       overrideToken = validation.token || overrideService.generateOverrideToken(pinCode, delivery.id);
     }
 
-    const cartItems = baskets[deliveryId] || [];
-    const formattedItems = cartItems.length > 0 
-      ? cartItems.map((c) => ({
-          productId: c.product.id,
-          productName: c.product.name,
-          quantityFardeau: c.quantityFardeau,
-          quantityUnit: c.quantityUnit,
-          unitPrice: c.product.priceUnit,
-          totalPrice: c.totalPrice,
-          returnedSainUnit: 0,
-          returnedAvarieUnit: 0,
-        }))
-      : [
-          {
-            productId: 'PROD-01',
-            productName: 'منتج افتراضي',
-            quantityFardeau: delivery.fardeauCount,
-            quantityUnit: 0,
-            unitPrice: 1800,
-            totalPrice: delivery.fardeauCount * 1800,
-            returnedSainUnit: delivery.sainCount,
-            returnedAvarieUnit: delivery.avarieCount,
-          },
-        ];
+    const formattedItems = [
+      {
+        productId: 'PROD-01',
+        productName: 'شحنة طرود أساسية معتمدة',
+        quantityFardeau: delivery.fardeauCount,
+        quantityUnit: 0,
+        unitPrice: Math.round(delivery.totalAmount / (delivery.fardeauCount || 1)),
+        totalPrice: delivery.totalAmount,
+        returnedSainUnit: delivery.sainCount,
+        returnedAvarieUnit: delivery.avarieCount,
+      },
+    ];
 
     const receiptData = {
       id: delivery.id,
@@ -209,7 +162,7 @@ export default function DriverDashboard() {
       taxRate: 0,
       taxAmount: 0,
       paymentMethod: (creditAdded > 0 ? 'credit' : 'cash') as 'cash' | 'credit' | 'mixed',
-      status: 'validated' as const, // تم تعديلها إلى validated المطابقة للواجهة
+      status: 'validated' as const,
       
       cashPaid: delivery.cashPaid,
       creditAdded: creditAdded,
@@ -281,11 +234,11 @@ export default function DriverDashboard() {
       items: [
         {
           productId: 'PROD-01',
-          productName: 'منتج افتراضي',
+          productName: 'شحنة طرود أساسية معتمدة',
           quantityFardeau: delivery.fardeauCount,
           quantityUnit: 0,
-          unitPrice: 1800,
-          totalPrice: delivery.fardeauCount * 1800,
+          unitPrice: Math.round(delivery.totalAmount / (delivery.fardeauCount || 1)),
+          totalPrice: delivery.totalAmount,
           returnedSainUnit: delivery.sainCount,
           returnedAvarieUnit: delivery.avarieCount,
         },
@@ -296,7 +249,7 @@ export default function DriverDashboard() {
       taxRate: 0,
       taxAmount: 0,
       paymentMethod: (creditAdded > 0 ? 'credit' : 'cash') as 'cash' | 'credit' | 'mixed',
-      status: 'validated' as const, // تم تعديلها إلى validated المطابقة للواجهة
+      status: 'validated' as const,
       
       cashPaid: delivery.cashPaid,
       creditAdded: creditAdded,
@@ -348,11 +301,11 @@ export default function DriverDashboard() {
           <div className="flex items-center gap-3">
             <span className="h-3 w-3 rounded-full bg-emerald-500 animate-pulse"></span>
             <h1 className="text-xl font-bold tracking-wide text-white">
-              DinarFlow SFA <span className="text-xs font-normal text-slate-400 bg-slate-800 px-2.5 py-1 rounded-md border border-slate-700">مملكة التوزيع (Driver)</span>
+              DinarFlow SFA <span className="text-xs font-normal text-slate-400 bg-slate-800 px-2.5 py-1 rounded-md border border-slate-700">مملكة التوزيع اللوجستجي (Driver)</span>
             </h1>
           </div>
           <p className="text-xs text-slate-400 mt-1">
-            السائق: عثمان زروقي | الشاحنة: ISUZU 3.5T (01334-116-13)
+            السائق: عثمان زروقي | الشاحنة: ISUZU 3.5T (01334-116-13) - مسار تسليم معتمد
           </p>
         </div>
 
@@ -409,7 +362,7 @@ export default function DriverDashboard() {
               : 'border-transparent text-slate-400 hover:text-slate-200'
           }`}
         >
-          خط المسار الميداني ({deliveries.length})
+          خط المسار اللوجستي ({deliveries.length})
         </button>
         <button
           onClick={() => setSelectedTab('summary')}
@@ -442,7 +395,6 @@ export default function DriverDashboard() {
             const isExceeded = projectedCredit > item.maxAllowedLimit;
             const availableCreditBuffer = Math.max(0, item.maxAllowedLimit - item.currentCredit);
             const usagePercentage = Math.min(100, Math.round((item.currentCredit / item.maxAllowedLimit) * 100));
-            const cartItems = baskets[item.id] || [];
 
             return (
               <div
@@ -496,7 +448,7 @@ export default function DriverDashboard() {
 
                       <div className="flex flex-wrap items-center gap-3 mt-2 text-xs">
                         <span className="text-slate-300 font-medium">
-                          الربطات: <strong className="text-indigo-400">{item.fardeauCount} Fardeau</strong>
+                          الكمية المشحونة: <strong className="text-indigo-400">{item.fardeauCount} Fardeau</strong>
                         </span>
                         <span className="text-slate-400 border-r border-slate-700 pr-3">
                           الدين الحالي: <strong className="text-amber-400">{item.currentCredit.toLocaleString()} د.ج</strong> ({usagePercentage}%)
@@ -512,15 +464,6 @@ export default function DriverDashboard() {
                   </div>
 
                   <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
-                    {item.status !== 'completed' && (
-                      <button
-                        onClick={() => handleOpenCatalogForDelivery(item.id)}
-                        className="px-4 py-2.5 bg-indigo-950/80 hover:bg-indigo-900/80 border border-indigo-700 text-indigo-300 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all"
-                      >
-                        🛍️ الكتالوج ({cartItems.length})
-                      </button>
-                    )}
-
                     <div className="text-right sm:text-left bg-slate-950 p-3 rounded-xl border border-slate-800/80 flex flex-col gap-1.5">
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-[10px] text-slate-400">الإجمالي:</span>
@@ -617,13 +560,6 @@ export default function DriverDashboard() {
           </div>
         </div>
       )}
-
-      {/* نافذة الكتالوج الميداني لتبويب المنتجات وسلة المبيعات */}
-      <ProductCatalogModal
-        isOpen={isCatalogOpen}
-        onClose={() => setIsCatalogOpen(false)}
-        onAddToCart={handleAddToCart}
-      />
     </div>
   );
 }

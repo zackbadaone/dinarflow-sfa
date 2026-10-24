@@ -61,8 +61,8 @@
   .touch-btn {
     min-height: 44px;
     display: inline-flex;
-    initial-letter: center;
     justify-content: center;
+    align-items: center;
     touch-action: manipulation;
   }
   
@@ -72,4 +72,15 @@
     border-radius: 0.875rem; /* 14px */
     border: 1px solid #e2e8f0; /* Slate-200 */
     box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
+  }
+  
+  /* ==========================================================================
+     Utility Classes: Scrollbar Removal (تنظيف واجهات الأجهزة اللوحية والهواتف)
+     ========================================================================== */
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+  .scrollbar-none {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
   }
